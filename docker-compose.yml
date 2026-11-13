@@ -1,0 +1,23 @@
+# Optional: run PostgreSQL 16 locally with Docker instead of installing it.
+#   docker compose up -d
+# The password is read from .env (POSTGRES_PASSWORD) — nothing is hardcoded.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: chat-backend-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: chat_backend
+      POSTGRES_USER: ${POSTGRES_USER:-chat_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d chat_backend']
+      interval: 5s
+      retries: 20
+
+volumes:
+  postgres-data:

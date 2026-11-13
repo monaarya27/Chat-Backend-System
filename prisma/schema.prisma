@@ -1,0 +1,55 @@
+// Prisma schema for the relational part of the chat backend (PostgreSQL).
+// Messages, read receipts and last-seen state live in Firestore, not here.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  /// Same value as the Firebase Auth uid when AUTH_MODE=firebase (max 128 chars).
+  id        String   @id @default(uuid()) @db.VarChar(128)
+  name      String   @db.VarChar(100)
+  email     String   @unique @db.VarChar(191)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  memberships ChatMember[]
+
+  @@map("users")
+}
+
+model Chat {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  /// Canonical key for one-to-one chats: the two member ids sorted and joined with ":".
+  /// The UNIQUE constraint is what makes duplicate 1:1 chats impossible, even
+  /// under concurrent requests. NULL is reserved for future group chats.
+  directKey String?  @unique @map("direct_key") @db.VarChar(257)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  members ChatMember[]
+
+  @@index([updatedAt])
+  @@map("chats")
+}
+
+model ChatMember {
+  id       String   @id @default(uuid()) @db.VarChar(36)
+  chatId   String   @map("chat_id") @db.VarChar(36)
+  userId   String   @map("user_id") @db.VarChar(128)
+  joinedAt DateTime @default(now()) @map("joined_at") @db.Timestamptz(3)
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// A user can only be a member of a given chat once.
+  @@unique([chatId, userId])
+  /// Speeds up "list all chats for a user".
+  @@index([userId])
+  @@map("chat_members")
+}
